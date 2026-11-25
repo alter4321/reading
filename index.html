@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- ++ Claude 25.11.2026 Добавлено: CSP — скрипты только свой (по хешу) и sql.js с точного адреса, сетевые запросы только к Dropbox API и файлу wasm. Даже внедрённый скрипт не сможет отправить ключи на чужой сервер.
      ВАЖНО: при любой правке текста <script> ниже хеш sha256 нужно пересчитать (см. README.md), иначе страница не запустится. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SMzreLamHOu6jzehmVh5ArT6EQvlcDryB5ZZqIoKnjg=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-9slJgJNyDPG/jSjVRCfg4bU7//HVGldXiXu9i3smsrw=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <!-- -- Claude 25.11.2026 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -164,6 +164,19 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 /* ++ Claude 25.11.2026 Добавлено: цвет ссылки «открыть Dropbox» */
 a{color:var(--b);font-weight:500}
 /* -- Claude 25.11.2026 */
+/* ++ Claude 25.11.2026 Добавлено: полка «Читаю сейчас» — корешки в красках ризографа на полке цвета чернил */
+.shelfcard{margin-top:22px}
+.shelf{display:flex;align-items:flex-end;gap:4px;height:196px;padding:0 8px;border-bottom:8px solid var(--ink);border-radius:0 0 2px 2px}
+.sp{position:relative;flex:0 1 var(--w);min-width:24px;height:var(--h);border-radius:4px 4px 0 0;display:flex;justify-content:center;padding-top:12px;cursor:pointer;box-shadow:inset -3px 0 0 rgba(0,0,0,.14)}
+.sp span{writing-mode:vertical-rl;transform:rotate(180deg);font:600 12.5px/1 Onest,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-height:calc(var(--h) - 26px)}
+.sp.c0{background:var(--b);color:var(--onb)}
+.sp.c1{background:var(--p);color:var(--onp)}
+.sp.c2{background:color-mix(in srgb,var(--b) 55%,var(--paper));color:var(--ink)}
+.sp.c3{background:color-mix(in srgb,var(--p) 55%,var(--ink));color:#fff}
+.sp em{position:absolute;right:5px;top:0;width:6px;height:var(--rb);background:var(--p);clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 5px),0 100%)}
+.sp.c1 em{background:var(--b)}
+.sp.sel{outline:2px solid var(--ink);outline-offset:2px}
+/* -- Claude 25.11.2026 */
 [hidden]{display:none!important}
 </style>
 <!-- -- Claude 25.11.2026 -->
@@ -214,6 +227,9 @@ a{color:var(--b);font-weight:500}
   </section>
 
   <div id="dash" hidden>
+    <!-- ++ Claude 25.11.2026 Добавлено: полка «Читаю сейчас» над плитками -->
+    <section class="card shelfcard" id="shelfBox" hidden><h2>Читаю сейчас</h2><div class="shelf" id="shelf"></div><div class="tip" data-hint="Корешок толще — больше часов, лента — сколько прочитано"></div></section>
+    <!-- -- Claude 25.11.2026 -->
     <div class="tiles" id="tiles"></div>
     <!-- ++ Claude 25.11.2026 Изменено: под графиками строка-подсказка для нажатия (на телефоне title не показывается)
     <section class="card"><h2>Последние 30 дней</h2><div class="bars" id="days"></div><div class="axis" id="daysAx"></div></section>
@@ -388,8 +404,12 @@ function analyze(books, ps, dayStart, now) {
   }
   const list = Object.values(byTitle).filter(m => m.time >= 60).sort((a, b) => (b.lastOpen || 0) - (a.lastOpen || 0)).map(m => {
     const ds = m.durs.sort((x, y) => x - y), med = ds.length ? ds[ds.length >> 1] : 0, prog = m.prog || 0;
-    return { title: m.title, authors: m.authors, time: m.time, read: m.read, lastOpen: m.lastOpen, prog, med,
+    //++ Claude 25.11.2026 Изменено: в результат добавлен объём книги (pages) — нужен для высоты корешка на полке
+    //return { title: m.title, authors: m.authors, time: m.time, read: m.read, lastOpen: m.lastOpen, prog, med,
+    //  left: prog < 0.97 && med ? (1 - prog) * (m.pages || 0) * med : 0 };
+    return { title: m.title, authors: m.authors, time: m.time, read: m.read, lastOpen: m.lastOpen, prog, med, pages: m.pages || 0,
       left: prog < 0.97 && med ? (1 - prog) * (m.pages || 0) * med : 0 };
+    //-- Claude 25.11.2026
   });
   return { day, hours, total, last, streak, week, todaySec: day[keyOf(today)] || 0, pagesTotal, list, back, keyOf };
 }
@@ -402,7 +422,24 @@ function render(s) {
   //++ Claude 25.11.2026 Добавлено: дашборд показывается до отрисовки, чтобы календарь мог измерить свою ширину; подсказки сбрасываются
   lastS = s;
   $('#dash').hidden = false;
-  document.querySelectorAll('#dash .tip').forEach(t => { t.textContent = 'Нажмите на столбик или клетку'; });
+  //++ Claude 25.11.2026 Изменено: у подсказки может быть свой текст (data-hint), например «Нажмите на корешок» у полки
+  //document.querySelectorAll('#dash .tip').forEach(t => { t.textContent = 'Нажмите на столбик или клетку'; });
+  document.querySelectorAll('#dash .tip').forEach(t => { t.textContent = t.dataset.hint || 'Нажмите на столбик или клетку'; });
+  //-- Claude 25.11.2026
+  //-- Claude 25.11.2026
+  //++ Claude 25.11.2026 Добавлено: полка «Читаю сейчас» — недочитанные книги (прогресс < 97%), последние открытые, до 7 штук.
+  // Высота корешка — объём книги, толщина — часы чтения, лента-закладка — прогресс. Дочитанная книга с полки пропадает.
+  const cur = s.list.filter(b => (Number(b.prog) || 0) < 0.97).slice(0, 7);
+  $('#shelfBox').hidden = !cur.length;
+  if (cur.length) {
+    const maxT = Math.max(1, ...cur.map(b => Number(b.time) || 0)), maxP = Math.max(1, ...cur.map(b => Number(b.pages) || 0));
+    $('#shelf').innerHTML = cur.map((b, i) => {
+      const pr = Number(b.prog) || 0, pg = Number(b.pages) || 0, tm = Number(b.time) || 0;
+      const w = Math.round(30 + tm / maxT * 26), h = Math.round(pg ? 112 + pg / maxP * 68 : 150);
+      const t = esc(`${b.title}: ${Math.round(pr * 100)}%${b.left ? ', осталось ≈ ' + dur(b.left) : ''}`);
+      return `<div class="sp c${i % 4}" style="--w:${w}px;--h:${h}px" title="${t}" data-t="${t}"><em style="--rb:${Math.max(4, Math.round(pr * 100))}%"></em><span>${esc(b.title)}</span></div>`;
+    }).join('');
+  }
   //-- Claude 25.11.2026
   $('#tiles').innerHTML = [
     ['Сегодня', dur(s.todaySec), ''],
