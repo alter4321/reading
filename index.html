@@ -3,16 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- ++ Claude 25.11.2026 Добавлено: CSP — скрипты только свой (по хешу) и sql.js с точного адреса, сетевые запросы только к Dropbox API и файлу wasm. Даже внедрённый скрипт не сможет отправить ключи на чужой сервер.
+     ВАЖНО: при любой правке текста <script> ниже хеш sha256 нужно пересчитать (см. README.md), иначе страница не запустится. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2/E3tPjv+BUdWHDEy5sk6wc1Kqz10MND2IeYrjB4bm0=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<!-- -- Claude 25.11.2026 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Чтение">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- ++ Claude 25.11.2026 Изменено: новый дизайн «Ризограф: сосна и сирень» — цвет панели браузера под бумагу и шрифты Unbounded + Onest вместо Literata
 <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)"> -->
+<meta name="theme-color" content="#f2f1ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171d1b" media="(prefers-color-scheme: dark)">
+<!-- -- Claude 25.11.2026 -->
 <title>Статистика чтения</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet">
-<style>
+<!-- ++ Claude 25.11.2026 Изменено: шрифты нового дизайна
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet"> -->
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;800&family=Onest:wght@400;500&display=swap" rel="stylesheet">
+<!-- -- Claude 25.11.2026 -->
+<!-- ++ Claude 25.11.2026 Изменено: старые стили дизайна «форзац» отключены через media="not all" (оставлены для истории), новые — в следующем блоке <style> -->
+<style media="not all">
 /* VOICE: тихий, книжный, как экран e-ink
    IDEA: страница-«форзац» читалки: бумага, чёрная типографика, один синий акцент
    PICTURE: столбики дней и календарь-тепловая карта
@@ -35,16 +48,37 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 @media(min-width:620px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
 .tile .l{font-size:13px;color:var(--mute)}
-.tile .big{font-size:clamp(24px,6vw,32px);line-height:1.1;margin-top:4px;white-space:nowrap}
+/* ++ Claude 25.11.2026 Изменено: убран nowrap — «52 ч 16 мин» вылезало из плитки на ширине 620–900px; в 4 колонки шрифт чуть меньше. Число с единицей склеены неразрывным пробелом в dur(), поэтому перенос только между «ч» и минутами.
+.tile .big{font-size:clamp(24px,6vw,32px);line-height:1.1;margin-top:4px;white-space:nowrap} */
+.tile .big{font-size:clamp(24px,6vw,32px);line-height:1.1;margin-top:4px}
+@media(min-width:620px){.tile .big{font-size:clamp(22px,3.4vw,30px)}}
+/* -- Claude 25.11.2026 */
 .tile .s{font-size:13px;color:var(--mute);margin-top:2px}
 .bars{display:flex;align-items:flex-end;gap:3px;height:150px}
 .bars div{flex:1;background:var(--acc);border-radius:3px 3px 0 0;min-height:2px;position:relative}
 .bars div.z{background:var(--line)}
 .axis{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);margin-top:6px}
-.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px}
+/* ++ Claude 25.11.2026 Изменено: строки календаря по высоте клеток (ширина колонок теперь задаётся из JS)
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px} */
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,auto);gap:3px}
+/* -- Claude 25.11.2026 */
 .heat i{aspect-ratio:1;border-radius:3px;background:var(--h0)}
 .legend{display:flex;gap:4px;align-items:center;font-size:13px;color:var(--mute);margin-top:10px}
 .legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+/* ++ Claude 25.11.2026 Добавлено: подписи месяцев и дней недели у календаря, ось часов по сетке столбиков, подсказка по нажатию (title на телефоне не виден) */
+.cal{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:6px;row-gap:4px}
+.cal .mon{display:grid;gap:3px;font-size:11px;line-height:14px;height:14px;color:var(--mute)}
+.cal .mon span{white-space:nowrap}
+.cal .wd{display:grid;grid-template-rows:repeat(7,1fr);gap:3px;font-size:11px;color:var(--mute);align-items:center}
+.axis.axis24{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:3px}
+.axis24 span{white-space:nowrap}
+[data-t]{cursor:pointer}
+.bars div.sel{background:var(--ink)}
+.heat i.sel{outline:2px solid var(--ink);outline-offset:1px}
+.tip{font-size:13px;color:var(--mute);margin-top:8px;min-height:1.5em}
+#setup details{margin-top:14px}
+#setup summary{cursor:pointer;color:var(--mute);font-size:14px}
+/* -- Claude 25.11.2026 */
 .book{padding:14px 0;border-top:1px solid var(--line)}
 .book:first-of-type{border-top:0;padding-top:0}
 .book b{font-family:Literata,Georgia,serif;font-size:18px;font-weight:600;display:block;line-height:1.25}
@@ -60,6 +94,76 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .err{color:#d23b3b}
 [hidden]{display:none!important}
 </style>
+<style>
+/* Ризограф: сосна и сирень
+   Две приглушённые краски на светло-серой бумаге: хвойно-зелёная (--b, основная) и сиреневая (--p, вторая).
+   Unbounded для заголовков и цифр, Onest для текста. Лёгкое зерно бумаги и небольшой сдвиг второй краски.
+   Тёмная тема — те же краски, светлее, на тёмной бумаге. */
+:root{color-scheme:light dark;
+  --paper:light-dark(#f2f1ec,#171d1b);--ink:light-dark(#1f2a27,#e6e9e4);--mute:light-dark(#5d6662,#9aa39e);
+  --b:light-dark(#2f6b5a,#7fbfa8);--p:light-dark(#b9a3d9,#a58fcb);--onp:light-dark(#2b2340,#1d1530);--onb:light-dark(#ffffff,#10201a);
+  --line:color-mix(in srgb,var(--ink) 12%,var(--paper));
+  --h0:color-mix(in srgb,var(--ink) 8%,var(--paper));--h1:color-mix(in srgb,var(--b) 22%,var(--paper));--h2:color-mix(in srgb,var(--b) 45%,var(--paper));--h3:color-mix(in srgb,var(--b) 72%,var(--paper));--h4:var(--b)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 Onest,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow-x:clip;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.12;mix-blend-mode:multiply;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+@media(prefers-color-scheme:dark){body::after{display:none}}
+main{max-width:760px;margin:0 auto;padding:20px 18px 48px}
+h1{font:800 34px/1 Unbounded,sans-serif;color:var(--b);text-shadow:2px 2px 0 color-mix(in srgb,var(--p) 80%,transparent);margin:8px 0 8px}
+h2{font:800 17px/1.2 Unbounded,sans-serif;margin:0 0 12px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#status{color:var(--mute);font-size:13px}
+button,.btn{font:inherit;font-size:15px;min-height:44px;padding:0 16px;border-radius:12px;border:1.5px solid color-mix(in srgb,var(--ink) 30%,var(--paper));background:transparent;color:var(--ink);cursor:pointer}
+button.pri{background:var(--b);border-color:var(--b);color:var(--onb)}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+.card{margin-top:32px}
+#setup.card{margin-top:18px;padding:18px;border-radius:18px;background:color-mix(in srgb,var(--p) 18%,var(--paper))}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:20px}
+@media(min-width:620px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.tile{padding:12px;border-radius:14px}
+.tile:nth-child(1){background:var(--p);color:var(--onp)}
+.tile:nth-child(2){background:var(--b);color:var(--onb)}
+.tile:nth-child(3){background:color-mix(in srgb,var(--p) 28%,var(--paper))}
+.tile:nth-child(4){background:color-mix(in srgb,var(--b) 14%,var(--paper))}
+.tile .l{font-size:12.5px;opacity:.85}
+.tile .big{font:800 clamp(22px,6.4vw,26px)/1.12 Unbounded,sans-serif;margin-top:4px}
+@media(min-width:620px){.tile .big{font-size:clamp(19px,3vw,24px)}}
+.tile .s{font-size:12.5px;opacity:.8;margin-top:3px}
+.bars{display:flex;align-items:flex-end;gap:3px;height:150px;padding-top:3px}
+.bars div{flex:1;background:var(--b);border-radius:4px 4px 0 0;min-height:3px;box-shadow:2px -2px 0 var(--p)}
+.bars div.z{background:var(--line);box-shadow:none}
+.bars div.sel{background:var(--ink)}
+.axis{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mute);margin-top:6px}
+.axis.axis24{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:3px}
+.axis24 span{white-space:nowrap}
+.cal{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:6px;row-gap:4px}
+.cal .mon{display:grid;gap:3px;font-size:11px;line-height:14px;height:14px;color:var(--mute)}
+.cal .mon span{white-space:nowrap}
+.cal .wd{display:grid;grid-template-rows:repeat(7,1fr);gap:3px;font-size:11px;color:var(--mute);align-items:center}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,auto);gap:3px}
+.heat i{aspect-ratio:1;border-radius:50%;background:var(--h0)}
+.heat i.sel{outline:2px solid var(--ink);outline-offset:1px}
+.legend{display:flex;gap:4px;align-items:center;font-size:12.5px;color:var(--mute);margin-top:10px}
+.legend i{width:12px;height:12px;border-radius:50%;display:inline-block}
+[data-t]{cursor:pointer}
+.tip{font-size:13px;color:var(--mute);margin-top:8px;min-height:1.5em}
+.book{padding:14px 0;border-top:2px solid var(--ink)}
+.book b{font:500 17px/1.25 Unbounded,sans-serif;display:block}
+.book .a{color:var(--mute);font-size:13.5px}
+.prog{height:10px;background:color-mix(in srgb,var(--p) 45%,var(--paper));border-radius:5px;margin:10px 0 6px;overflow:hidden}
+.prog span{display:block;height:100%;background:var(--b);border-radius:5px}
+.meta{font-size:13.5px;color:var(--mute);display:flex;flex-wrap:wrap;gap:4px 14px}
+.meta span{white-space:nowrap}
+#setup label{display:block;font-size:14px;color:var(--mute);margin:12px 0 4px}
+#setup input[type=text],#setup input[type=number],#setup input[type=password]{width:100%;font:inherit;font-size:16px;min-height:44px;padding:8px 12px;border-radius:10px;border:1.5px solid color-mix(in srgb,var(--ink) 18%,var(--paper));background:var(--paper);color:var(--ink)}
+#setup details{margin-top:14px}
+#setup summary{cursor:pointer;color:var(--mute);font-size:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.note{font-size:14px;color:var(--mute)}
+.err{color:light-dark(#b3261e,#ff8a80)}
+[hidden]{display:none!important}
+</style>
+<!-- -- Claude 25.11.2026 -->
 </head>
 <body>
 <main>
@@ -75,8 +179,24 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
     <h2>Подключение к Dropbox</h2>
     <p class="note">Ключи хранятся только в этом браузере и никуда, кроме Dropbox, не отправляются. На айфоне вводите их уже в приложении с экрана «Домой».</p>
     <label for="k">App key</label><input id="k" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <!-- ++ Claude 25.11.2026 Добавлено: вход через Dropbox по PKCE — нужен только App key, App secret в браузере не хранится, токен выдаётся только на чтение файлов -->
+    <div class="row">
+      <button class="pri" id="auth">Войти через Dropbox</button>
+    </div>
+    <div id="codeRow" hidden>
+      <label for="code">Код из Dropbox</label><input id="code" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="note">Разрешите доступ в открывшейся вкладке, скопируйте показанный код и вставьте сюда.</p>
+      <div class="row"><button class="pri" id="codeOk">Подтвердить код</button></div>
+    </div>
+    <details id="manual">
+      <summary>Ввести токен вручную (старый способ)</summary>
+      <p class="note">App secret нужен, только если refresh token получен не через кнопку «Войти через Dropbox».</p>
+    <!-- -- Claude 25.11.2026 -->
     <label for="sec">App secret</label><input id="sec" type="password" autocomplete="off">
     <label for="rt">Refresh token</label><input id="rt" type="password" autocomplete="off">
+    <!-- ++ Claude 25.11.2026 Добавлено: конец блока «вручную» -->
+    </details>
+    <!-- -- Claude 25.11.2026 -->
     <label for="p">Путь к файлу в Dropbox</label><input id="p" type="text" autocapitalize="off" spellcheck="false">
     <label for="ds">Новый день начинается в (час)</label><input id="ds" type="number" min="0" max="12" inputmode="numeric">
     <p class="note">Если читаете после полуночи, ночное чтение засчитается в предыдущий день.</p>
@@ -89,19 +209,34 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 
   <div id="dash" hidden>
     <div class="tiles" id="tiles"></div>
+    <!-- ++ Claude 25.11.2026 Изменено: под графиками строка-подсказка для нажатия (на телефоне title не показывается)
     <section class="card"><h2>Последние 30 дней</h2><div class="bars" id="days"></div><div class="axis" id="daysAx"></div></section>
     <section class="card"><h2>Календарь</h2><div class="heat" id="heat"></div>
       <div class="legend">меньше <i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i> больше часа</div></section>
     <section class="card"><h2>Время суток</h2><div class="bars" id="hours" style="height:110px"></div><div class="axis"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div></section>
+    Календарь: добавлены подписи месяцев и дней недели. Время суток: подписи стоят строго под своими столбиками. -->
+    <section class="card"><h2>Последние 30 дней</h2><div class="bars" id="days"></div><div class="axis" id="daysAx"></div><div class="tip"></div></section>
+    <section class="card"><h2>Календарь</h2>
+      <div class="cal"><div></div><div class="mon" id="heatMon"></div>
+        <div class="wd"><span>Пн</span><span></span><span>Ср</span><span></span><span>Пт</span><span></span><span></span></div><div class="heat" id="heat"></div></div>
+      <div class="legend">меньше <i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i> больше часа</div><div class="tip"></div></section>
+    <section class="card"><h2>Время суток</h2><div class="bars" id="hours" style="height:110px"></div><div class="axis axis24"><span style="grid-column:1">0:00</span><span style="grid-column:7">6:00</span><span style="grid-column:13">12:00</span><span style="grid-column:19">18:00</span></div><div class="tip"></div></section>
+    <!-- -- Claude 25.11.2026 -->
     <section class="card"><h2>Книги</h2><div id="books"></div></section>
   </div>
 </main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<!-- ++ Claude 25.11.2026 Изменено: добавлена проверка целостности (SRI) — подменённый на CDN файл не выполнится. Хеш сверен с api.cdnjs.com и с самим файлом.
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script> -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js" integrity="sha512-n7swEtVCvXpQ7KxgpPyp0+DQQEf5vPpmzCRl14x2sp2v5LpCYCjrAx03mkBAbWwGF9eUoIk8YVcDFuJRIeYttg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- -- Claude 25.11.2026 -->
 <script>
 {
 const $ = s => document.querySelector(s);
 const KEY = 'reading-stats.v1', CACHE = 'reading-stats.db';
+//++ Claude 25.11.2026 Добавлено: ключ для временного хранения PKCE-верификатора на время входа
+const PKCE = 'reading-stats.pkce';
+//-- Claude 25.11.2026
 let cfg = {};
 try { cfg = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
 if (!cfg.path) cfg.path = '/Приложения/statistics.sqlite3';
@@ -110,22 +245,73 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } cat
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const status = (t, bad) => { const el = $('#status'); el.textContent = t; el.className = bad ? 'err' : ''; };
 const pad = n => String(n).padStart(2, '0');
-const dur = sec => { const m = Math.round(sec / 60); if (m < 60) return m + ' мин'; const h = Math.floor(m / 60), r = m % 60; return h + ' ч' + (r ? ' ' + r + ' мин' : ''); };
+//++ Claude 25.11.2026 Изменено: неразрывный пробел между числом и единицей — перенос в плитке только между «ч» и минутами
+//const dur = sec => { const m = Math.round(sec / 60); if (m < 60) return m + ' мин'; const h = Math.floor(m / 60), r = m % 60; return h + ' ч' + (r ? ' ' + r + ' мин' : ''); };
+const dur = sec => { const m = Math.round(sec / 60); if (m < 60) return m + ' мин'; const h = Math.floor(m / 60), r = m % 60; return h + ' ч' + (r ? ' ' + r + ' мин' : ''); };
+//-- Claude 25.11.2026
 const MON = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+//++ Claude 25.11.2026 Добавлено: месяцы в именительном падеже для шапки календаря
+const MON_N = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+//-- Claude 25.11.2026
 const ascii = o => JSON.stringify(o).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
 const toB64 = u => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
 const fromB64 = b => Uint8Array.from(atob(b), c => c.charCodeAt(0));
+//++ Claude 25.11.2026 Добавлено: base64url для PKCE
+const b64url = u => toB64(u).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+//-- Claude 25.11.2026
 const SQLp = initSqlJs({ locateFile: f => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/' + f });
 
 async function token() {
   if (cfg.tok && cfg.tokExp > Date.now() + 60000) return cfg.tok;
-  const r = await fetch('https://api.dropboxapi.com/oauth2/token', { method: 'POST',
-    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: cfg.refresh, client_id: cfg.key, client_secret: cfg.secret }) });
+  //++ Claude 25.11.2026 Изменено: client_secret отправляется, только если задан (при входе через PKCE он не нужен)
+  //const r = await fetch('https://api.dropboxapi.com/oauth2/token', { method: 'POST',
+  //  body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: cfg.refresh, client_id: cfg.key, client_secret: cfg.secret }) });
+  const body = { grant_type: 'refresh_token', refresh_token: cfg.refresh, client_id: cfg.key };
+  if (cfg.secret) body.client_secret = cfg.secret;
+  const r = await fetch('https://api.dropboxapi.com/oauth2/token', { method: 'POST', body: new URLSearchParams(body) });
+  //-- Claude 25.11.2026
   if (!r.ok) throw new Error('Dropbox не принял ключи (' + r.status + '). Проверьте их в настройках.');
   const j = await r.json();
   cfg.tok = j.access_token; cfg.tokExp = Date.now() + j.expires_in * 1000; save();
   return cfg.tok;
 }
+
+//++ Claude 25.11.2026 Добавлено: вход через Dropbox по OAuth PKCE без redirect — Dropbox показывает код, его вставляют в поле.
+// Работает и в приложении с экрана «Домой» на айфоне. Секрет не нужен, токен запрашивается только с правом files.content.read.
+async function authStart() {
+  const k = $('#k').value.trim();
+  if (!k) { status('Сначала укажите App key', true); $('#k').focus(); return; }
+  const v = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const ch = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v))));
+  try { localStorage.setItem(PKCE, JSON.stringify({ k, v })); } catch (e) {}
+  const q = new URLSearchParams({ client_id: k, response_type: 'code', token_access_type: 'offline',
+    code_challenge: ch, code_challenge_method: 'S256', scope: 'files.content.read' });
+  window.open('https://www.dropbox.com/oauth2/authorize?' + q, '_blank', 'noopener');
+  $('#codeRow').hidden = false; $('#code').value = ''; $('#code').focus();
+  status('Разрешите доступ в Dropbox, скопируйте код и вставьте его в настройках');
+}
+
+async function authFinish() {
+  let p = {}; try { p = JSON.parse(localStorage.getItem(PKCE) || '{}'); } catch (e) {}
+  const code = $('#code').value.trim();
+  if (!p.v || !code) { status('Нет кода — нажмите «Войти через Dropbox» ещё раз', true); return; }
+  try {
+    const r = await fetch('https://api.dropboxapi.com/oauth2/token', { method: 'POST',
+      body: new URLSearchParams({ grant_type: 'authorization_code', code, code_verifier: p.v, client_id: p.k }) });
+    if (!r.ok) throw new Error('Dropbox не принял код (' + r.status + '). Получите новый.');
+    const j = await r.json();
+    if (!j.refresh_token) throw new Error('Dropbox не выдал refresh token');
+    cfg.key = p.k; cfg.secret = ''; cfg.refresh = j.refresh_token;
+    cfg.tok = j.access_token; cfg.tokExp = Date.now() + j.expires_in * 1000;
+    cfg.path = $('#p').value.trim() || '/Приложения/statistics.sqlite3';
+    cfg.dayStart = Math.min(12, Math.max(0, parseInt($('#ds').value, 10) || 0));
+    save();
+    try { localStorage.removeItem(PKCE); } catch (e) {}
+    $('#codeRow').hidden = true; $('#setup').hidden = true;
+    load();
+  } catch (e) { status(e.message || 'Не удалось войти', true); }
+}
+//-- Claude 25.11.2026
 
 async function download() {
   const t = await token();
@@ -174,7 +360,16 @@ function analyze(books, ps, dayStart, now) {
   return { day, hours, total, last, streak, week, todaySec: day[keyOf(today)] || 0, pagesTotal, list, back, keyOf };
 }
 
+//++ Claude 25.11.2026 Добавлено: последние посчитанные данные — чтобы перерисовать календарь при смене ширины окна
+let lastS = null;
+//-- Claude 25.11.2026
+
 function render(s) {
+  //++ Claude 25.11.2026 Добавлено: дашборд показывается до отрисовки, чтобы календарь мог измерить свою ширину; подсказки сбрасываются
+  lastS = s;
+  $('#dash').hidden = false;
+  document.querySelectorAll('#dash .tip').forEach(t => { t.textContent = 'Нажмите на столбик или клетку'; });
+  //-- Claude 25.11.2026
   $('#tiles').innerHTML = [
     ['Сегодня', dur(s.todaySec), ''],
     ['За 7 дней', dur(s.week), 'в среднем ' + dur(s.week / 7) + ' в день'],
@@ -184,28 +379,73 @@ function render(s) {
 
   const d30 = []; for (let k = 29; k >= 0; k--) { const dt = s.back(k); d30.push([dt, s.day[s.keyOf(dt)] || 0]); }
   const m30 = Math.max(60, ...d30.map(x => x[1]));
-  $('#days').innerHTML = d30.map(([dt, v]) => `<div class="${v ? '' : 'z'}" style="height:${(v / m30 * 100).toFixed(1)}%" title="${dt.getDate()} ${MON[dt.getMonth()]}: ${dur(v)}"></div>`).join('');
+  //++ Claude 25.11.2026 Изменено: добавлен data-t для подсказки по нажатию
+  //$('#days').innerHTML = d30.map(([dt, v]) => `<div class="${v ? '' : 'z'}" style="height:${(v / m30 * 100).toFixed(1)}%" title="${dt.getDate()} ${MON[dt.getMonth()]}: ${dur(v)}"></div>`).join('');
+  $('#days').innerHTML = d30.map(([dt, v]) => { const t = esc(`${dt.getDate()} ${MON[dt.getMonth()]}: ${dur(v)}`); return `<div class="${v ? '' : 'z'}" style="height:${(v / m30 * 100).toFixed(1)}%" title="${t}" data-t="${t}"></div>`; }).join('');
+  //-- Claude 25.11.2026
   $('#daysAx').innerHTML = [d30[0][0], d30[15][0], d30[29][0]].map(dt => `<span>${dt.getDate()} ${MON[dt.getMonth()]}</span>`).join('');
 
-  const weeks = 20, start = s.back(weeks * 7 - 1 + ((s.back(0).getDay() + 6) % 7) - 6);
+  //++ Claude 25.11.2026 Изменено: календарь вынесен в renderHeat — число недель подбирается под ширину, добавлены подписи
+  //const weeks = 20, start = s.back(weeks * 7 - 1 + ((s.back(0).getDay() + 6) % 7) - 6);
+  //let cells = ''; const lv = v => v <= 0 ? 0 : v < 900 ? 1 : v < 1800 ? 2 : v < 3600 ? 3 : 4;
+  //for (let k = 0; k < weeks * 7; k++) {
+  //  const dt = new Date(start); dt.setDate(dt.getDate() + k);
+  //  if (dt > s.back(0)) { cells += '<i style="visibility:hidden"></i>'; continue; }
+  //  const v = s.day[s.keyOf(dt)] || 0;
+  //  cells += `<i style="background:var(--h${lv(v)})" title="${dt.getDate()} ${MON[dt.getMonth()]}: ${dur(v)}"></i>`;
+  //}
+  //$('#heat').innerHTML = cells;
+  renderHeat(s);
+  //-- Claude 25.11.2026
+
+  const mh = Math.max(1, ...s.hours);
+  //++ Claude 25.11.2026 Изменено: добавлен data-t для подсказки по нажатию
+  //$('#hours').innerHTML = s.hours.map((v, h) => `<div class="${v ? '' : 'z'}" style="height:${(v / mh * 100).toFixed(1)}%" title="${h}:00 — ${dur(v)}"></div>`).join('');
+  $('#hours').innerHTML = s.hours.map((v, h) => { const t = esc(`${h}:00–${h + 1}:00 — ${dur(v)}`); return `<div class="${v ? '' : 'z'}" style="height:${(v / mh * 100).toFixed(1)}%" title="${t}" data-t="${t}"></div>`; }).join('');
+  //-- Claude 25.11.2026
+
+  //++ Claude 25.11.2026 Изменено: числа из базы приводятся через Number() — SQLite допускает текст в числовых полях, и подсунутый вручную файл мог вставить свой HTML
+  //$('#books').innerHTML = s.list.length ? s.list.map(b => `<div class="book"><b>${esc(b.title)}</b><span class="a">${esc(b.authors && b.authors !== 'N/A' ? b.authors : '')}</span>
+  //  <div class="prog"><span style="width:${(b.prog * 100).toFixed(1)}%"></span></div>
+  //  <div class="meta"><span>${Math.round(b.prog * 100)}%</span><span>${esc(dur(b.time))}</span><span>${b.read} стр.</span>${b.med ? `<span>~${b.med} с/стр.</span>` : ''}${b.left ? `<span>осталось ≈ ${esc(dur(b.left))}</span>` : ''}${b.lastOpen ? `<span>${fmtDate(b.lastOpen)}</span>` : ''}</div></div>`).join('')
+  //  : '<p class="note">Пока нет книг с записанным временем.</p>';
+  $('#books').innerHTML = s.list.length ? s.list.map(b => { const pr = Number(b.prog) || 0, rd = Number(b.read) || 0, md = Number(b.med) || 0, lo = Number(b.lastOpen) || 0;
+    return `<div class="book"><b>${esc(b.title)}</b><span class="a">${esc(b.authors && b.authors !== 'N/A' ? b.authors : '')}</span>
+    <div class="prog"><span style="width:${(pr * 100).toFixed(1)}%"></span></div>
+    <div class="meta"><span>${Math.round(pr * 100)}%</span><span>${esc(dur(b.time))}</span><span>${rd} стр.</span>${md ? `<span>~${md} с/стр.</span>` : ''}${b.left ? `<span>осталось ≈ ${esc(dur(b.left))}</span>` : ''}${lo ? `<span>${fmtDate(lo)}</span>` : ''}</div></div>`; }).join('')
+    : '<p class="note">Пока нет книг с записанным временем.</p>';
+  //-- Claude 25.11.2026
+  //++ Claude 25.11.2026 Удалено: дашборд теперь показывается в начале render (нужна ширина для календаря)
+  //$('#dash').hidden = false;
+  //-- Claude 25.11.2026
+}
+
+//++ Claude 25.11.2026 Добавлено: календарь — число недель по ширине (на телефоне ~20, на компьютере до 53), подписи месяцев сверху
+function renderHeat(s) {
+  const el = $('#heat'), gap = 3, w = el.clientWidth, cell = w < 400 ? 11 : 14;
+  const weeks = Math.max(12, Math.min(53, Math.floor((w + gap) / (cell + gap)) || 20));
+  const start = s.back(weeks * 7 - 1 + ((s.back(0).getDay() + 6) % 7) - 6);
   let cells = ''; const lv = v => v <= 0 ? 0 : v < 900 ? 1 : v < 1800 ? 2 : v < 3600 ? 3 : 4;
   for (let k = 0; k < weeks * 7; k++) {
     const dt = new Date(start); dt.setDate(dt.getDate() + k);
     if (dt > s.back(0)) { cells += '<i style="visibility:hidden"></i>'; continue; }
-    const v = s.day[s.keyOf(dt)] || 0;
-    cells += `<i style="background:var(--h${lv(v)})" title="${dt.getDate()} ${MON[dt.getMonth()]}: ${dur(v)}"></i>`;
+    const v = s.day[s.keyOf(dt)] || 0, t = esc(`${dt.getDate()} ${MON[dt.getMonth()]}: ${dur(v)}`);
+    cells += `<i style="background:var(--h${lv(v)})" title="${t}" data-t="${t}"></i>`;
   }
-  $('#heat').innerHTML = cells;
-
-  const mh = Math.max(1, ...s.hours);
-  $('#hours').innerHTML = s.hours.map((v, h) => `<div class="${v ? '' : 'z'}" style="height:${(v / mh * 100).toFixed(1)}%" title="${h}:00 — ${dur(v)}"></div>`).join('');
-
-  $('#books').innerHTML = s.list.length ? s.list.map(b => `<div class="book"><b>${esc(b.title)}</b><span class="a">${esc(b.authors && b.authors !== 'N/A' ? b.authors : '')}</span>
-    <div class="prog"><span style="width:${(b.prog * 100).toFixed(1)}%"></span></div>
-    <div class="meta"><span>${Math.round(b.prog * 100)}%</span><span>${esc(dur(b.time))}</span><span>${b.read} стр.</span>${b.med ? `<span>~${b.med} с/стр.</span>` : ''}${b.left ? `<span>осталось ≈ ${esc(dur(b.left))}</span>` : ''}${b.lastOpen ? `<span>${fmtDate(b.lastOpen)}</span>` : ''}</div></div>`).join('')
-    : '<p class="note">Пока нет книг с записанным временем.</p>';
-  $('#dash').hidden = false;
+  const cols = `repeat(${weeks},minmax(0,1fr))`;
+  el.style.gridTemplateColumns = cols;
+  el.innerHTML = cells;
+  const marks = []; let prev = -1;
+  for (let c = 0; c < weeks; c++) {
+    const dt = new Date(start); dt.setDate(dt.getDate() + c * 7);
+    if (dt.getMonth() !== prev) { marks.push([c, dt.getMonth()]); prev = dt.getMonth(); }
+  }
+  if (marks.length > 1 && marks[1][0] - marks[0][0] < 3) marks.shift();
+  const mon = $('#heatMon');
+  mon.style.gridTemplateColumns = cols;
+  mon.innerHTML = marks.map(([c, m]) => `<span style="grid-column:${c + 1}">${MON_N[m]}</span>`).join('');
 }
+//-- Claude 25.11.2026
 
 const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };
 const fmtDate = ts => { const d = new Date(ts * 1000); return d.getDate() + ' ' + MON[d.getMonth()] + ', ' + d.getHours() + ':' + pad(d.getMinutes()); };
@@ -225,7 +465,10 @@ async function show(buf) {
 let busy = false;
 async function load() {
   if (busy) return;
-  if (!cfg.refresh || !cfg.key || !cfg.secret) { openSetup(); status('Нужно подключить Dropbox'); return; }
+  //++ Claude 25.11.2026 Изменено: App secret больше не обязателен (вход через PKCE); если на экране уже данные из кэша — не раскрываем настройки поверх них
+  //if (!cfg.refresh || !cfg.key || !cfg.secret) { openSetup(); status('Нужно подключить Dropbox'); return; }
+  if (!cfg.refresh || !cfg.key) { if ($('#dash').hidden) openSetup(); status('Нужно подключить Dropbox — откройте «Настройки»'); return; }
+  //-- Claude 25.11.2026
   busy = true; status('Загружаю из Dropbox…');
   try {
     const buf = await download();
@@ -240,10 +483,26 @@ async function load() {
 function openSetup() {
   $('#k').value = cfg.key || ''; $('#sec').value = cfg.secret || ''; $('#rt').value = cfg.refresh || '';
   $('#p').value = cfg.path; $('#ds').value = cfg.dayStart; $('#setup').hidden = false;
+  //++ Claude 25.11.2026 Добавлено: блок «вручную» раскрыт, только если ключи были введены старым способом (с секретом)
+  $('#manual').open = !!cfg.secret;
+  //-- Claude 25.11.2026
 }
 
 $('#gear').addEventListener('click', () => { const el = $('#setup'); if (el.hidden) openSetup(); else el.hidden = true; });
 $('#refresh').addEventListener('click', load);
+//++ Claude 25.11.2026 Добавлено: кнопки входа через Dropbox, подсказка по нажатию на графики, перерисовка календаря при смене ширины
+$('#auth').addEventListener('click', authStart);
+$('#codeOk').addEventListener('click', authFinish);
+$('#code').addEventListener('keydown', e => { if (e.key === 'Enter') authFinish(); });
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-t]'); if (!t) return;
+  const card = t.closest('.card'), tip = card && card.querySelector('.tip'); if (!tip) return;
+  card.querySelectorAll('.sel').forEach(x => x.classList.remove('sel'));
+  t.classList.add('sel'); tip.textContent = t.dataset.t;
+});
+let rsz = 0;
+window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (lastS) renderHeat(lastS); }, 150); });
+//-- Claude 25.11.2026
 $('#save').addEventListener('click', () => {
   const nk = $('#k').value.trim(), ns = $('#sec').value.trim(), nr = $('#rt').value.trim();
   if (nk !== cfg.key || ns !== cfg.secret || nr !== cfg.refresh) cfg.tok = null;
@@ -255,6 +514,9 @@ $('#save').addEventListener('click', () => {
 $('#forget').addEventListener('click', () => {
   cfg = { path: cfg.path, dayStart: cfg.dayStart }; save();
   try { localStorage.removeItem(CACHE); } catch (e) {}
+  //++ Claude 25.11.2026 Добавлено: заодно удаляется незавершённый PKCE-вход
+  try { localStorage.removeItem(PKCE); } catch (e) {}
+  //-- Claude 25.11.2026
   openSetup(); status('Ключи удалены');
 });
 $('#file').addEventListener('change', async e => {
