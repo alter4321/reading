@@ -5,8 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- ++ Claude 25.11.2026 Добавлено: CSP — скрипты только свой (по хешу) и sql.js с точного адреса, сетевые запросы только к Dropbox API и файлу wasm. Даже внедрённый скрипт не сможет отправить ключи на чужой сервер.
      ВАЖНО: при любой правке текста <script> ниже хеш sha256 нужно пересчитать (см. README.md), иначе страница не запустится. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4JITw9aKZ3qYjtKtcLyntxzqVfILWlsB/sUTHy+GtA8=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4JITw9aKZ3qYjtKtcLyntxzqVfILWlsB/sUTHy+GtA8=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: 'self'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
+<!-- -- Claude 25.11.2026 -->
+<!-- ++ Claude 25.11.2026 Добавлено: иконка «Стопка» для экрана «Домой» и вкладки браузера; в CSP выше к img-src добавлено 'self', чтобы иконка грузилась со своего сайта -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="apple-touch-icon.png">
 <!-- -- Claude 25.11.2026 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
