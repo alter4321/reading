@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Чтение">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+<title>Статистика чтения</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: тихий, книжный, как экран e-ink
+   IDEA: страница-«форзац» читалки: бумага, чёрная типографика, один синий акцент
+   PICTURE: столбики дней и календарь-тепловая карта
+   COLOUR/TYPE: бумага #f4f3ef, чернила #161616, кобальт #2f4bdb; Literata + системный шрифт
+   LAYOUT: одна колонка, крупные цифры сверху, дальше графики и книги */
+:root{color-scheme:light dark;--bg:light-dark(#f4f3ef,#141414);--card:light-dark(#fff,#1d1d1d);--ink:light-dark(#161616,#ecebe6);--mute:light-dark(#6d6b66,#9a9892);--line:light-dark(#e3e1da,#2c2c2c);--acc:light-dark(#2f4bdb,#7d93ff);--h0:light-dark(#e8e6df,#262626);--h1:light-dark(#c9d1f7,#2b3566);--h2:light-dark(#8e9ef0,#3f51b5);--h3:light-dark(#5168e3,#6178f0);--h4:light-dark(#2f4bdb,#9aabff)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow-x:clip;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+main{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+h1,h2,.big{font-family:Literata,Georgia,serif}
+h1{font-size:34px;line-height:1.05;margin:8px 0 4px;font-weight:600}
+h2{font-size:21px;margin:0 0 14px;font-weight:600}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#status{color:var(--mute);font-size:14px}
+button,.btn{font:inherit;font-size:15px;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:14px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
+@media(min-width:620px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.tile .l{font-size:13px;color:var(--mute)}
+.tile .big{font-size:clamp(24px,6vw,32px);line-height:1.1;margin-top:4px;white-space:nowrap}
+.tile .s{font-size:13px;color:var(--mute);margin-top:2px}
+.bars{display:flex;align-items:flex-end;gap:3px;height:150px}
+.bars div{flex:1;background:var(--acc);border-radius:3px 3px 0 0;min-height:2px;position:relative}
+.bars div.z{background:var(--line)}
+.axis{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);margin-top:6px}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px}
+.heat i{aspect-ratio:1;border-radius:3px;background:var(--h0)}
+.legend{display:flex;gap:4px;align-items:center;font-size:13px;color:var(--mute);margin-top:10px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.book{padding:14px 0;border-top:1px solid var(--line)}
+.book:first-of-type{border-top:0;padding-top:0}
+.book b{font-family:Literata,Georgia,serif;font-size:18px;font-weight:600;display:block;line-height:1.25}
+.book .a{color:var(--mute);font-size:14px}
+.prog{height:6px;background:var(--line);border-radius:3px;margin:10px 0 6px;overflow:hidden}
+.prog span{display:block;height:100%;background:var(--acc)}
+.meta{font-size:14px;color:var(--mute);display:flex;flex-wrap:wrap;gap:4px 14px}
+.meta span{white-space:nowrap}
+#setup label{display:block;font-size:14px;color:var(--mute);margin:12px 0 4px}
+#setup input[type=text],#setup input[type=number],#setup input[type=password]{width:100%;font:inherit;font-size:16px;min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.note{font-size:14px;color:var(--mute)}
+.err{color:#d23b3b}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div><h1>Чтение</h1><div id="status">Загрузка…</div></div>
+    <div class="row" style="margin:0">
+      <button id="refresh">Обновить</button>
+      <button id="gear" aria-label="Настройки">Настройки</button>
+    </div>
+  </div>
+
+  <section id="setup" class="card" hidden>
+    <h2>Подключение к Dropbox</h2>
+    <p class="note">Ключи хранятся только в этом браузере и никуда, кроме Dropbox, не отправляются. На айфоне вводите их уже в приложении с экрана «Домой».</p>
+    <label for="k">App key</label><input id="k" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label for="sec">App secret</label><input id="sec" type="password" autocomplete="off">
+    <label for="rt">Refresh token</label><input id="rt" type="password" autocomplete="off">
+    <label for="p">Путь к файлу в Dropbox</label><input id="p" type="text" autocapitalize="off" spellcheck="false">
+    <label for="ds">Новый день начинается в (час)</label><input id="ds" type="number" min="0" max="12" inputmode="numeric">
+    <p class="note">Если читаете после полуночи, ночное чтение засчитается в предыдущий день.</p>
+    <div class="row">
+      <button class="pri" id="save">Сохранить и загрузить</button>
+      <label class="btn" style="display:inline-flex;align-items:center">Открыть файл вручную<input id="file" type="file" accept=".sqlite3,.sqlite,.db" hidden></label>
+      <button id="forget">Удалить ключи</button>
+    </div>
+  </section>
+
+  <div id="dash" hidden>
+    <div class="tiles" id="tiles"></div>
+    <section class="card"><h2>Последние 30 дней</h2><div class="bars" id="days"></div><div class="axis" id="daysAx"></div></section>
+    <section class="card"><h2>Календарь</h2><div class="heat" id="heat"></div>
+      <div class="legend">меньше <i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i> больше часа</div></section>
+    <section class="card"><h2>Время суток</h2><div class="bars" id="hours" style="height:110px"></div><div class="axis"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div></section>
+    <section class="card"><h2>Книги</h2><div id="books"></div></section>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script>
+{
+const $ = s => document.querySelector(s);
+const KEY = 'reading-stats.v1', CACHE = 'reading-stats.db';
+let cfg = {};
+try { cfg = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
+if (!cfg.path) cfg.path = '/Приложения/statistics.sqlite3';
+if (cfg.dayStart == null) cfg.dayStart = 4;
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const status = (t, bad) => { const el = $('#status'); el.textContent = t; el.className = bad ? 'err' : ''; };
+const pad = n => String(n).padStart(2, '0');
+const dur = sec => { const m = Math.round(sec / 60); if (m < 60) return m + ' мин'; const h = Math.floor(m / 60), r = m % 60; return h + ' ч' + (r ? ' ' + r + ' мин' : ''); };
+const MON = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+const ascii = o => JSON.stringify(o).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+const toB64 = u => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const fromB64 = b => Uint8Array.from(atob(b), c => c.charCodeAt(0));
+const SQLp = initSqlJs({ locateFile: f => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/' + f });
+
+async function token() {
+  if (cfg.tok && cfg.tokExp > Date.now() + 60000) return cfg.tok;
+  const r = await fetch('https://api.dropboxapi.com/oauth2/token', { method: 'POST',
+    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: cfg.refresh, client_id: cfg.key, client_secret: cfg.secret }) });
+  if (!r.ok) throw new Error('Dropbox не принял ключи (' + r.status + '). Проверьте их в настройках.');
+  const j = await r.json();
+  cfg.tok = j.access_token; cfg.tokExp = Date.now() + j.expires_in * 1000; save();
+  return cfg.tok;
+}
+
+async function download() {
+  const t = await token();
+  const r = await fetch('https://content.dropboxapi.com/2/files/download', { method: 'POST',
+    headers: { Authorization: 'Bearer ' + t, 'Dropbox-API-Arg': ascii({ path: cfg.path }) } });
+  if (r.status === 401) { cfg.tok = null; save(); throw new Error('Токен устарел, нажмите «Обновить» ещё раз.'); }
+  if (r.status === 409) throw new Error('Файл не найден в Dropbox: ' + cfg.path);
+  if (!r.ok) throw new Error('Ошибка Dropbox: ' + r.status);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+function analyze(books, ps, dayStart, now) {
+  const shift = dayStart * 3600;
+  const key = ts => { const d = new Date((ts - shift) * 1000); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  const day = {}, hours = new Array(24).fill(0), per = {};
+  let total = 0, last = 0;
+  for (const [b, page, st, d, tp] of ps) {
+    day[key(st)] = (day[key(st)] || 0) + d;
+    hours[new Date(st * 1000).getHours()] += d;
+    total += d; if (st > last) last = st;
+    const p = per[b] || (per[b] = { durs: [], last: 0, page: 0, tp: 0 });
+    p.durs.push(d);
+    if (st >= p.last) { p.last = st; p.page = page; p.tp = tp; }
+  }
+  const today = new Date((now - shift) * 1000); today.setHours(12, 0, 0, 0);
+  const keyOf = dt => key(Math.floor(dt.getTime() / 1000) + shift);
+  const back = n => { const d = new Date(today); d.setDate(d.getDate() - n); return d; };
+  let streak = 0, i = day[keyOf(today)] ? 0 : 1;
+  while (day[keyOf(back(i))]) { streak++; i++; }
+  let week = 0; for (let k = 0; k < 7; k++) week += day[keyOf(back(k))] || 0;
+  const pagesTotal = books.reduce((s, b) => s + (b[5] || 0), 0);
+  const byTitle = {};
+  for (const b of books.slice().sort((a, b) => (a[6] || 0) - (b[6] || 0))) {
+    const p = per[b[0]] || { durs: [], page: 0, tp: 0 };
+    const k = String(b[1] || '').trim().toLowerCase();
+    const m = byTitle[k] || (byTitle[k] = { title: b[1], authors: b[2], time: 0, read: 0, durs: [] });
+    m.time += b[4] || 0; m.read += b[5] || 0; m.durs.push(...p.durs);
+    if (p.tp) { m.prog = Math.min(1, p.page / p.tp); m.pages = b[3] || p.tp; }
+    m.lastOpen = b[6];
+  }
+  const list = Object.values(byTitle).filter(m => m.time >= 60).sort((a, b) => (b.lastOpen || 0) - (a.lastOpen || 0)).map(m => {
+    const ds = m.durs.sort((x, y) => x - y), med = ds.length ? ds[ds.length >> 1] : 0, prog = m.prog || 0;
+    return { title: m.title, authors: m.authors, time: m.time, read: m.read, lastOpen: m.lastOpen, prog, med,
+      left: prog < 0.97 && med ? (1 - prog) * (m.pages || 0) * med : 0 };
+  });
+  return { day, hours, total, last, streak, week, todaySec: day[keyOf(today)] || 0, pagesTotal, list, back, keyOf };
+}
+
+function render(s) {
+  $('#tiles').innerHTML = [
+    ['Сегодня', dur(s.todaySec), ''],
+    ['За 7 дней', dur(s.week), 'в среднем ' + dur(s.week / 7) + ' в день'],
+    ['Серия', s.streak + ' ' + plural(s.streak, 'день', 'дня', 'дней'), 'подряд с чтением'],
+    ['Всего', dur(s.total), s.pagesTotal + ' стр.']
+  ].map(([l, v, sub]) => `<div class="tile"><div class="l">${l}</div><div class="big">${esc(v)}</div><div class="s">${esc(sub)}</div></div>`).join('');
+
+  const d30 = []; for (let k = 29; k >= 0; k--) { const dt = s.back(k); d30.push([dt, s.day[s.keyOf(dt)] || 0]); }
+  const m30 = Math.max(60, ...d30.map(x => x[1]));
+  $('#days').innerHTML = d30.map(([dt, v]) => `<div class="${v ? '' : 'z'}" style="height:${(v / m30 * 100).toFixed(1)}%" title="${dt.getDate()} ${MON[dt.getMonth()]}: ${dur(v)}"></div>`).join('');
+  $('#daysAx').innerHTML = [d30[0][0], d30[15][0], d30[29][0]].map(dt => `<span>${dt.getDate()} ${MON[dt.getMonth()]}</span>`).join('');
+
+  const weeks = 20, start = s.back(weeks * 7 - 1 + ((s.back(0).getDay() + 6) % 7) - 6);
+  let cells = ''; const lv = v => v <= 0 ? 0 : v < 900 ? 1 : v < 1800 ? 2 : v < 3600 ? 3 : 4;
+  for (let k = 0; k < weeks * 7; k++) {
+    const dt = new Date(start); dt.setDate(dt.getDate() + k);
+    if (dt > s.back(0)) { cells += '<i style="visibility:hidden"></i>'; continue; }
+    const v = s.day[s.keyOf(dt)] || 0;
+    cells += `<i style="background:var(--h${lv(v)})" title="${dt.getDate()} ${MON[dt.getMonth()]}: ${dur(v)}"></i>`;
+  }
+  $('#heat').innerHTML = cells;
+
+  const mh = Math.max(1, ...s.hours);
+  $('#hours').innerHTML = s.hours.map((v, h) => `<div class="${v ? '' : 'z'}" style="height:${(v / mh * 100).toFixed(1)}%" title="${h}:00 — ${dur(v)}"></div>`).join('');
+
+  $('#books').innerHTML = s.list.length ? s.list.map(b => `<div class="book"><b>${esc(b.title)}</b><span class="a">${esc(b.authors && b.authors !== 'N/A' ? b.authors : '')}</span>
+    <div class="prog"><span style="width:${(b.prog * 100).toFixed(1)}%"></span></div>
+    <div class="meta"><span>${Math.round(b.prog * 100)}%</span><span>${esc(dur(b.time))}</span><span>${b.read} стр.</span>${b.med ? `<span>~${b.med} с/стр.</span>` : ''}${b.left ? `<span>осталось ≈ ${esc(dur(b.left))}</span>` : ''}${b.lastOpen ? `<span>${fmtDate(b.lastOpen)}</span>` : ''}</div></div>`).join('')
+    : '<p class="note">Пока нет книг с записанным временем.</p>';
+  $('#dash').hidden = false;
+}
+
+const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };
+const fmtDate = ts => { const d = new Date(ts * 1000); return d.getDate() + ' ' + MON[d.getMonth()] + ', ' + d.getHours() + ':' + pad(d.getMinutes()); };
+
+async function show(buf) {
+  const SQL = await SQLp;
+  const db = new SQL.Database(buf);
+  const q = sql => { const r = db.exec(sql); return r.length ? r[0].values : []; };
+  const books = q('select id,title,authors,pages,total_read_time,total_read_pages,last_open from book');
+  const ps = q('select id_book,page,start_time,duration,total_pages from page_stat_data order by start_time');
+  db.close();
+  const s = analyze(books, ps, +cfg.dayStart || 0, Date.now() / 1000);
+  render(s);
+  return s;
+}
+
+let busy = false;
+async function load() {
+  if (busy) return;
+  if (!cfg.refresh || !cfg.key || !cfg.secret) { openSetup(); status('Нужно подключить Dropbox'); return; }
+  busy = true; status('Загружаю из Dropbox…');
+  try {
+    const buf = await download();
+    const s = await show(buf);
+    try { localStorage.setItem(CACHE, toB64(buf)); } catch (e) {}
+    status('Обновлено ' + fmtDate(Date.now() / 1000) + (s.last ? ' · последнее чтение ' + fmtDate(s.last) : ''));
+  } catch (e) {
+    status(e.message || 'Не удалось загрузить данные', true);
+  } finally { busy = false; }
+}
+
+function openSetup() {
+  $('#k').value = cfg.key || ''; $('#sec').value = cfg.secret || ''; $('#rt').value = cfg.refresh || '';
+  $('#p').value = cfg.path; $('#ds').value = cfg.dayStart; $('#setup').hidden = false;
+}
+
+$('#gear').addEventListener('click', () => { const el = $('#setup'); if (el.hidden) openSetup(); else el.hidden = true; });
+$('#refresh').addEventListener('click', load);
+$('#save').addEventListener('click', () => {
+  const nk = $('#k').value.trim(), ns = $('#sec').value.trim(), nr = $('#rt').value.trim();
+  if (nk !== cfg.key || ns !== cfg.secret || nr !== cfg.refresh) cfg.tok = null;
+  cfg.key = nk; cfg.secret = ns; cfg.refresh = nr;
+  cfg.path = $('#p').value.trim() || '/Приложения/statistics.sqlite3';
+  cfg.dayStart = Math.min(12, Math.max(0, parseInt($('#ds').value, 10) || 0));
+  save(); $('#setup').hidden = true; load();
+});
+$('#forget').addEventListener('click', () => {
+  cfg = { path: cfg.path, dayStart: cfg.dayStart }; save();
+  try { localStorage.removeItem(CACHE); } catch (e) {}
+  openSetup(); status('Ключи удалены');
+});
+$('#file').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const s = await show(new Uint8Array(await f.arrayBuffer())); $('#setup').hidden = true; status('Файл ' + f.name + (s.last ? ' · последнее чтение ' + fmtDate(s.last) : '')); }
+  catch (err) { status('Не получилось прочитать файл: ' + err.message, true); }
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - (window.__lastLoad || 0) > 60000) { window.__lastLoad = Date.now(); load(); } });
+
+(async () => {
+  try { const c = localStorage.getItem(CACHE); if (c) await show(fromB64(c)); } catch (e) {}
+  window.__lastLoad = Date.now();
+  load();
+})();
+}
+</script>
+</body>
+</html>
