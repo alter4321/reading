@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- ++ Claude 25.11.2026 Добавлено: CSP — скрипты только свой (по хешу) и sql.js с точного адреса, сетевые запросы только к Dropbox API и файлу wasm. Даже внедрённый скрипт не сможет отправить ключи на чужой сервер.
      ВАЖНО: при любой правке текста <script> ниже хеш sha256 нужно пересчитать (см. README.md), иначе страница не запустится. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2/E3tPjv+BUdWHDEy5sk6wc1Kqz10MND2IeYrjB4bm0=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SMzreLamHOu6jzehmVh5ArT6EQvlcDryB5ZZqIoKnjg=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <!-- -- Claude 25.11.2026 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -161,6 +161,9 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 .note{font-size:14px;color:var(--mute)}
 .err{color:light-dark(#b3261e,#ff8a80)}
+/* ++ Claude 25.11.2026 Добавлено: цвет ссылки «открыть Dropbox» */
+a{color:var(--b);font-weight:500}
+/* -- Claude 25.11.2026 */
 [hidden]{display:none!important}
 </style>
 <!-- -- Claude 25.11.2026 -->
@@ -185,7 +188,10 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
     </div>
     <div id="codeRow" hidden>
       <label for="code">Код из Dropbox</label><input id="code" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <p class="note">Разрешите доступ в открывшейся вкладке, скопируйте показанный код и вставьте сюда.</p>
+      <!-- ++ Claude 25.11.2026 Изменено: на айфоне вкладка могла не открыться — добавлена ссылка, по которой можно перейти вручную
+      <p class="note">Разрешите доступ в открывшейся вкладке, скопируйте показанный код и вставьте сюда.</p> -->
+      <p class="note">Разрешите доступ на странице Dropbox, скопируйте показанный код и вставьте сюда. Если страница не открылась: <a id="authLink" href="#" target="_blank" rel="noopener noreferrer">открыть Dropbox</a>.</p>
+      <!-- -- Claude 25.11.2026 -->
       <div class="row"><button class="pri" id="codeOk">Подтвердить код</button></div>
     </div>
     <details id="manual">
@@ -278,18 +284,46 @@ async function token() {
 
 //++ Claude 25.11.2026 Добавлено: вход через Dropbox по OAuth PKCE без redirect — Dropbox показывает код, его вставляют в поле.
 // Работает и в приложении с экрана «Домой» на айфоне. Секрет не нужен, токен запрашивается только с правом files.content.read.
-async function authStart() {
-  const k = $('#k').value.trim();
-  if (!k) { status('Сначала укажите App key', true); $('#k').focus(); return; }
+//++ Claude 25.11.2026 Изменено: Safari на iOS блокирует window.open, если перед ним был await (теряется «нажатие пользователя»).
+// Пара PKCE теперь готовится заранее, а вкладка открывается сразу по нажатию. Плюс ссылка «открыть Dropbox» на случай блокировки
+// и восстановление поля для кода, если iOS перезапустил приложение, пока вы были в Safari.
+//async function authStart() {
+//  const k = $('#k').value.trim();
+//  if (!k) { status('Сначала укажите App key', true); $('#k').focus(); return; }
+//  const v = b64url(crypto.getRandomValues(new Uint8Array(48)));
+//  const ch = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v))));
+//  try { localStorage.setItem(PKCE, JSON.stringify({ k, v })); } catch (e) {}
+//  const q = new URLSearchParams({ client_id: k, response_type: 'code', token_access_type: 'offline',
+//    code_challenge: ch, code_challenge_method: 'S256', scope: 'files.content.read' });
+//  window.open('https://www.dropbox.com/oauth2/authorize?' + q, '_blank', 'noopener');
+//  $('#codeRow').hidden = false; $('#code').value = ''; $('#code').focus();
+//  status('Разрешите доступ в Dropbox, скопируйте код и вставьте его в настройках');
+//}
+let pk = null;
+async function pkPrep() {
   const v = b64url(crypto.getRandomValues(new Uint8Array(48)));
   const ch = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v))));
-  try { localStorage.setItem(PKCE, JSON.stringify({ k, v })); } catch (e) {}
+  pk = { v, ch };
+}
+function showCodeRow(url) {
+  $('#authLink').href = url;
+  $('#codeRow').hidden = false;
+}
+function authStart() {
+  const k = $('#k').value.trim();
+  if (!k) { status('Сначала укажите App key', true); $('#k').focus(); return; }
+  if (!pk) { pkPrep(); status('Подготовка… нажмите «Войти через Dropbox» ещё раз', true); return; }
+  const { v, ch } = pk; pk = null;
   const q = new URLSearchParams({ client_id: k, response_type: 'code', token_access_type: 'offline',
     code_challenge: ch, code_challenge_method: 'S256', scope: 'files.content.read' });
-  window.open('https://www.dropbox.com/oauth2/authorize?' + q, '_blank', 'noopener');
-  $('#codeRow').hidden = false; $('#code').value = ''; $('#code').focus();
+  const url = 'https://www.dropbox.com/oauth2/authorize?' + q;
+  try { localStorage.setItem(PKCE, JSON.stringify({ k, v, url })); } catch (e) {}
+  window.open(url, '_blank', 'noopener');
+  showCodeRow(url); $('#code').value = '';
   status('Разрешите доступ в Dropbox, скопируйте код и вставьте его в настройках');
+  pkPrep();
 }
+//-- Claude 25.11.2026
 
 async function authFinish() {
   let p = {}; try { p = JSON.parse(localStorage.getItem(PKCE) || '{}'); } catch (e) {}
@@ -485,6 +519,11 @@ function openSetup() {
   $('#p').value = cfg.path; $('#ds').value = cfg.dayStart; $('#setup').hidden = false;
   //++ Claude 25.11.2026 Добавлено: блок «вручную» раскрыт, только если ключи были введены старым способом (с секретом)
   $('#manual').open = !!cfg.secret;
+  //-- Claude 25.11.2026
+  //++ Claude 25.11.2026 Добавлено: заранее готовим пару PKCE; если вход начат и не закончен — снова показываем поле для кода
+  if (!pk) pkPrep();
+  let p = {}; try { p = JSON.parse(localStorage.getItem(PKCE) || '{}'); } catch (e) {}
+  if (p.v && p.url) { if (!$('#k').value) $('#k').value = p.k || ''; showCodeRow(p.url); }
   //-- Claude 25.11.2026
 }
 
