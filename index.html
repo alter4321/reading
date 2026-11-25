@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- ++ Claude 25.11.2026 Добавлено: CSP — скрипты только свой (по хешу) и sql.js с точного адреса, сетевые запросы только к Dropbox API и файлу wasm. Даже внедрённый скрипт не сможет отправить ключи на чужой сервер.
      ВАЖНО: при любой правке текста <script> ниже хеш sha256 нужно пересчитать (см. README.md), иначе страница не запустится. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-3Cc/cyW3DgtpLoCgJybtt+9+kvmKMPw4GGmC5Nz+ua4=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4JITw9aKZ3qYjtKtcLyntxzqVfILWlsB/sUTHy+GtA8=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <!-- -- Claude 25.11.2026 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -187,6 +187,19 @@ a{color:var(--b);font-weight:500}
 .pb.c3{background:color-mix(in srgb,var(--p) 55%,var(--ink));color:#fff}
 .pb.sel{outline:2px solid var(--ink);outline-offset:2px}
 /* -- Claude 25.11.2026 */
+/* ++ Claude 25.11.2026 Добавлено: свёрнутый блок «Прочитанные» — компактные бледные строки без полоски прогресса */
+.donedet{border-top:2px solid var(--ink);padding-top:12px}
+.donedet summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;font:800 17px/1.2 Unbounded,sans-serif;min-height:44px}
+.donedet summary::-webkit-details-marker{display:none}
+.donedet summary i{flex:none;font-style:normal;width:32px;height:32px;border-radius:50%;background:var(--p);color:var(--onp);display:grid;place-items:center;font:600 18px/1 Onest,sans-serif;transition:transform .2s}
+.donedet[open] summary i{transform:rotate(90deg)}
+@media(prefers-reduced-motion:reduce){.donedet summary i{transition:none}}
+.dbook{padding:10px 0;border-top:1px solid var(--line);opacity:.7}
+.dbook:first-child{margin-top:6px}
+.dbook b{font:500 15px/1.25 Unbounded,sans-serif;display:block}
+.dbook .a{color:var(--mute);font-size:13px}
+.dbook .meta{margin-top:2px}
+/* -- Claude 25.11.2026 */
 [hidden]{display:none!important}
 </style>
 <!-- -- Claude 25.11.2026 -->
@@ -254,9 +267,15 @@ a{color:var(--b);font-weight:500}
       <div class="legend">меньше <i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i> больше часа</div><div class="tip"></div></section>
     <section class="card"><h2>Время суток</h2><div class="bars" id="hours" style="height:110px"></div><div class="axis axis24"><span style="grid-column:1">0:00</span><span style="grid-column:7">6:00</span><span style="grid-column:13">12:00</span><span style="grid-column:19">18:00</span></div><div class="tip"></div></section>
     <!-- -- Claude 25.11.2026 -->
-    <section class="card"><h2>Книги</h2><div id="books"></div></section>
+    <!-- ++ Claude 25.11.2026 Изменено: раздел называется «Читаю» — в нём только недочитанные
+    <section class="card"><h2>Книги</h2><div id="books"></div></section> -->
+    <section class="card"><h2>Читаю</h2><div id="books"></div></section>
+    <!-- -- Claude 25.11.2026 -->
     <!-- ++ Claude 25.11.2026 Добавлено: стопка прочитанных за календарный год -->
     <section class="card" id="pileBox" hidden><h2 id="pileTitle">Прочитано</h2><div class="pile" id="pile"></div><div class="tip" data-hint="Нажмите на книгу — покажу, когда дочитана"></div></section>
+    <!-- -- Claude 25.11.2026 -->
+    <!-- ++ Claude 25.11.2026 Добавлено: свёрнутый список прочитанных под стопкой -->
+    <section class="card" id="doneBox" hidden><details class="donedet"><summary><span id="doneTitle">Прочитанные</span><i aria-hidden="true">›</i></summary><div id="doneList"></div></details></section>
     <!-- -- Claude 25.11.2026 -->
   </div>
 </main>
@@ -536,11 +555,32 @@ function render(s) {
   //  <div class="prog"><span style="width:${(b.prog * 100).toFixed(1)}%"></span></div>
   //  <div class="meta"><span>${Math.round(b.prog * 100)}%</span><span>${esc(dur(b.time))}</span><span>${b.read} стр.</span>${b.med ? `<span>~${b.med} с/стр.</span>` : ''}${b.left ? `<span>осталось ≈ ${esc(dur(b.left))}</span>` : ''}${b.lastOpen ? `<span>${fmtDate(b.lastOpen)}</span>` : ''}</div></div>`).join('')
   //  : '<p class="note">Пока нет книг с записанным временем.</p>';
-  $('#books').innerHTML = s.list.length ? s.list.map(b => { const pr = Number(b.prog) || 0, rd = Number(b.read) || 0, md = Number(b.med) || 0, lo = Number(b.lastOpen) || 0;
+  //++ Claude 25.11.2026 Изменено: в списке «Читаю» только недочитанные (прочитанные — в свёрнутом блоке ниже стопки)
+  //$('#books').innerHTML = s.list.length ? s.list.map(b => { const pr = Number(b.prog) || 0, rd = Number(b.read) || 0, md = Number(b.med) || 0, lo = Number(b.lastOpen) || 0;
+  //  return `...`; }).join('')
+  //  : '<p class="note">Пока нет книг с записанным временем.</p>';
+  const reading = s.list.filter(b => (Number(b.prog) || 0) < DONE);
+  $('#books').innerHTML = reading.length ? reading.map(b => { const pr = Number(b.prog) || 0, rd = Number(b.read) || 0, md = Number(b.med) || 0, lo = Number(b.lastOpen) || 0;
+  //-- Claude 25.11.2026
     return `<div class="book"><b>${esc(b.title)}</b><span class="a">${esc(b.authors && b.authors !== 'N/A' ? b.authors : '')}</span>
     <div class="prog"><span style="width:${(pr * 100).toFixed(1)}%"></span></div>
     <div class="meta"><span>${Math.round(pr * 100)}%</span><span>${esc(dur(b.time))}</span><span>${rd} стр.</span>${md ? `<span>~${md} с/стр.</span>` : ''}${b.left ? `<span>осталось ≈ ${esc(dur(b.left))}</span>` : ''}${lo ? `<span>${fmtDate(lo)}</span>` : ''}</div></div>`; }).join('')
-    : '<p class="note">Пока нет книг с записанным временем.</p>';
+  //++ Claude 25.11.2026 Изменено: текст для пустого списка
+  //  : '<p class="note">Пока нет книг с записанным временем.</p>';
+    : '<p class="note">Сейчас нет недочитанных книг.</p>';
+  //-- Claude 25.11.2026
+  //-- Claude 25.11.2026
+  //++ Claude 25.11.2026 Добавлено: свёрнутый блок «Прочитанные (N)» — все дочитанные книги, компактно: время чтения и дата окончания, без полоски прогресса
+  const finished = s.list.filter(b => (Number(b.prog) || 0) >= DONE);
+  $('#doneBox').hidden = !finished.length;
+  if (finished.length) {
+    const yNow = new Date().getFullYear();
+    const dOnly = ts => { const d = new Date(ts * 1000); return d.getDate() + ' ' + MON[d.getMonth()] + (d.getFullYear() !== yNow ? ' ' + d.getFullYear() : ''); };
+    $('#doneTitle').textContent = `Прочитанные (${finished.length})`;
+    $('#doneList').innerHTML = finished.map(b => { const lo = Number(b.lastOpen) || 0;
+      return `<div class="dbook"><b>${esc(b.title)}</b><span class="a">${esc(b.authors && b.authors !== 'N/A' ? b.authors : '')}</span>
+      <div class="meta"><span>${esc(dur(Number(b.time) || 0))}</span>${lo ? `<span>дочитана ${dOnly(lo)}</span>` : ''}</div></div>`; }).join('');
+  }
   //-- Claude 25.11.2026
   //++ Claude 25.11.2026 Удалено: дашборд теперь показывается в начале render (нужна ширина для календаря)
   //$('#dash').hidden = false;
