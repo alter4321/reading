@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- ++ Claude 25.11.2026 Добавлено: CSP — скрипты только свой (по хешу) и sql.js с точного адреса, сетевые запросы только к Dropbox API и файлу wasm. Даже внедрённый скрипт не сможет отправить ключи на чужой сервер.
      ВАЖНО: при любой правке текста <script> ниже хеш sha256 нужно пересчитать (см. README.md), иначе страница не запустится. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4JITw9aKZ3qYjtKtcLyntxzqVfILWlsB/sUTHy+GtA8=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-H8S6qhGiCZGdwknfJFMNy1o2mPzyB8KMuV24rhQ6tvU=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: 'self'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <!-- -- Claude 25.11.2026 -->
 <!-- ++ Claude 25.11.2026 Добавлено: иконка «Стопка» для экрана «Домой» и вкладки браузера; в CSP выше к img-src добавлено 'self', чтобы иконка грузилась со своего сайта -->
@@ -221,7 +221,9 @@ a{color:var(--b);font-weight:500}
   <section id="setup" class="card" hidden>
     <h2>Подключение к Dropbox</h2>
     <p class="note">Ключи хранятся только в этом браузере и никуда, кроме Dropbox, не отправляются. На айфоне вводите их уже в приложении с экрана «Домой».</p>
-    <label for="k">App key</label><input id="k" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <!-- ++ Claude 25.11.2026 Удалено: App key встроен в страницу (DEFAULT_KEY), поле перенесено в блок «вручную» ниже
+    <label for="k">App key</label><input id="k" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"> -->
+    <!-- -- Claude 25.11.2026 -->
     <!-- ++ Claude 25.11.2026 Добавлено: вход через Dropbox по PKCE — нужен только App key, App secret в браузере не хранится, токен выдаётся только на чтение файлов -->
     <div class="row">
       <button class="pri" id="auth">Войти через Dropbox</button>
@@ -235,7 +237,11 @@ a{color:var(--b);font-weight:500}
       <div class="row"><button class="pri" id="codeOk">Подтвердить код</button></div>
     </div>
     <details id="manual">
-      <summary>Ввести токен вручную (старый способ)</summary>
+      <!-- ++ Claude 25.11.2026 Изменено: блок переименован, в него перенесено поле App key (по умолчанию — встроенный ключ)
+      <summary>Ввести токен вручную (старый способ)</summary> -->
+      <summary>Другой App key или токен вручную</summary>
+      <label for="k">App key</label><input id="k" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <!-- -- Claude 25.11.2026 -->
       <p class="note">App secret нужен, только если refresh token получен не через кнопку «Войти через Dropbox».</p>
     <!-- -- Claude 25.11.2026 -->
     <label for="sec">App secret</label><input id="sec" type="password" autocomplete="off">
@@ -302,6 +308,11 @@ let cfg = {};
 try { cfg = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
 if (!cfg.path) cfg.path = '/Приложения/statistics.sqlite3';
 if (cfg.dayStart == null) cfg.dayStart = 4;
+//++ Claude 25.11.2026 Добавлено: встроенный App key — это публичный идентификатор приложения Dropbox (при входе через PKCE не секрет),
+// поэтому вводить его не нужно. Свой ключ по-прежнему можно указать в блоке «Другой App key или токен вручную».
+const DEFAULT_KEY = 'a5lth7wu6453mxv';
+if (!cfg.key) cfg.key = DEFAULT_KEY;
+//-- Claude 25.11.2026
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const status = (t, bad) => { const el = $('#status'); el.textContent = t; el.className = bad ? 'err' : ''; };
@@ -688,7 +699,10 @@ $('#save').addEventListener('click', () => {
   save(); $('#setup').hidden = true; load();
 });
 $('#forget').addEventListener('click', () => {
-  cfg = { path: cfg.path, dayStart: cfg.dayStart }; save();
+  //++ Claude 25.11.2026 Изменено: после удаления ключей остаётся встроенный App key
+  //cfg = { path: cfg.path, dayStart: cfg.dayStart }; save();
+  cfg = { path: cfg.path, dayStart: cfg.dayStart, key: DEFAULT_KEY }; save();
+  //-- Claude 25.11.2026
   try { localStorage.removeItem(CACHE); } catch (e) {}
   //++ Claude 25.11.2026 Добавлено: заодно удаляется незавершённый PKCE-вход
   try { localStorage.removeItem(PKCE); } catch (e) {}
@@ -703,6 +717,9 @@ $('#file').addEventListener('change', async e => {
 document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - (window.__lastLoad || 0) > 60000) { window.__lastLoad = Date.now(); load(); } });
 
 (async () => {
+  //++ Claude 25.11.2026 Добавлено: просим браузер не очищать память сайта (вход и кэш), если он это поддерживает
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  //-- Claude 25.11.2026
   try { const c = localStorage.getItem(CACHE); if (c) await show(fromB64(c)); } catch (e) {}
   window.__lastLoad = Date.now();
   load();
