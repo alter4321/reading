@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- ++ Claude 25.11.2026 Добавлено: CSP — скрипты только свой (по хешу) и sql.js с точного адреса, сетевые запросы только к Dropbox API и файлу wasm. Даже внедрённый скрипт не сможет отправить ключи на чужой сервер.
      ВАЖНО: при любой правке текста <script> ниже хеш sha256 нужно пересчитать (см. README.md), иначе страница не запустится. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-9slJgJNyDPG/jSjVRCfg4bU7//HVGldXiXu9i3smsrw=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-YDxvP47VhYC4//gvujwozLxEjxOO31uxnLjcaWExFpw=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <!-- -- Claude 25.11.2026 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -177,6 +177,16 @@ a{color:var(--b);font-weight:500}
 .sp.c1 em{background:var(--b)}
 .sp.sel{outline:2px solid var(--ink);outline-offset:2px}
 /* -- Claude 25.11.2026 */
+/* ++ Claude 25.11.2026 Добавлено: стопка прочитанных — книги лежат друг на друге, корешок с названием горизонтально */
+.pile{display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:6px;border-bottom:8px solid var(--ink);border-radius:0 0 2px 2px}
+.pb{width:var(--w);height:var(--t);border-radius:3px;display:flex;align-items:center;padding:0 12px;transform:translateX(var(--x)) rotate(var(--r));cursor:pointer;box-shadow:inset 0 -3px 0 rgba(0,0,0,.14);font:600 12.5px/1 Onest,sans-serif}
+.pb span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb.c0{background:var(--b);color:var(--onb)}
+.pb.c1{background:var(--p);color:var(--onp)}
+.pb.c2{background:color-mix(in srgb,var(--b) 55%,var(--paper));color:var(--ink)}
+.pb.c3{background:color-mix(in srgb,var(--p) 55%,var(--ink));color:#fff}
+.pb.sel{outline:2px solid var(--ink);outline-offset:2px}
+/* -- Claude 25.11.2026 */
 [hidden]{display:none!important}
 </style>
 <!-- -- Claude 25.11.2026 -->
@@ -245,6 +255,9 @@ a{color:var(--b);font-weight:500}
     <section class="card"><h2>Время суток</h2><div class="bars" id="hours" style="height:110px"></div><div class="axis axis24"><span style="grid-column:1">0:00</span><span style="grid-column:7">6:00</span><span style="grid-column:13">12:00</span><span style="grid-column:19">18:00</span></div><div class="tip"></div></section>
     <!-- -- Claude 25.11.2026 -->
     <section class="card"><h2>Книги</h2><div id="books"></div></section>
+    <!-- ++ Claude 25.11.2026 Добавлено: стопка прочитанных за календарный год -->
+    <section class="card" id="pileBox" hidden><h2 id="pileTitle">Прочитано</h2><div class="pile" id="pile"></div><div class="tip" data-hint="Нажмите на книгу — покажу, когда дочитана"></div></section>
+    <!-- -- Claude 25.11.2026 -->
   </div>
 </main>
 
@@ -429,7 +442,11 @@ function render(s) {
   //-- Claude 25.11.2026
   //++ Claude 25.11.2026 Добавлено: полка «Читаю сейчас» — недочитанные книги (прогресс < 97%), последние открытые, до 7 штук.
   // Высота корешка — объём книги, толщина — часы чтения, лента-закладка — прогресс. Дочитанная книга с полки пропадает.
-  const cur = s.list.filter(b => (Number(b.prog) || 0) < 0.97).slice(0, 7);
+  //++ Claude 25.11.2026 Изменено: на полке только книги, которые открывали за последние 30 дней (брошенные давно не мешают)
+  //const cur = s.list.filter(b => (Number(b.prog) || 0) < 0.97).slice(0, 7);
+  const monthAgo = Date.now() / 1000 - 30 * 86400;
+  const cur = s.list.filter(b => (Number(b.prog) || 0) < 0.97 && (Number(b.lastOpen) || 0) >= monthAgo).slice(0, 7);
+  //-- Claude 25.11.2026
   $('#shelfBox').hidden = !cur.length;
   if (cur.length) {
     const maxT = Math.max(1, ...cur.map(b => Number(b.time) || 0)), maxP = Math.max(1, ...cur.map(b => Number(b.pages) || 0));
@@ -438,6 +455,23 @@ function render(s) {
       const w = Math.round(30 + tm / maxT * 26), h = Math.round(pg ? 112 + pg / maxP * 68 : 150);
       const t = esc(`${b.title}: ${Math.round(pr * 100)}%${b.left ? ', осталось ≈ ' + dur(b.left) : ''}`);
       return `<div class="sp c${i % 4}" style="--w:${w}px;--h:${h}px" title="${t}" data-t="${t}"><em style="--rb:${Math.max(4, Math.round(pr * 100))}%"></em><span>${esc(b.title)}</span></div>`;
+    }).join('');
+  }
+  //-- Claude 25.11.2026
+  //++ Claude 25.11.2026 Добавлено: стопка прочитанных за календарный год (прогресс ≥ 97%, последнее открытие в этом году).
+  // Сверху — дочитанная последней. Толщина книги — объём, лёгкий сдвиг и наклон — чтобы стопка выглядела живой.
+  const yr = new Date().getFullYear();
+  const done = s.list.filter(b => (Number(b.prog) || 0) >= 0.97 && b.lastOpen && new Date(Number(b.lastOpen) * 1000).getFullYear() === yr);
+  $('#pileBox').hidden = !done.length;
+  if (done.length) {
+    $('#pileTitle').textContent = `Прочитано в ${yr}: ${done.length} ${plural(done.length, 'книга', 'книги', 'книг')}`;
+    const maxP = Math.max(1, ...done.map(b => Number(b.pages) || 0));
+    const hash = str => { let x = 0; for (const ch of String(str)) x = (x * 31 + ch.charCodeAt(0)) | 0; return Math.abs(x); };
+    $('#pile').innerHTML = done.map((b, i) => {
+      const pg = Number(b.pages) || 0, hs = hash(b.title);
+      const th = Math.round(pg ? 20 + pg / maxP * 14 : 26), w = 64 + hs % 29, x = (hs >> 3) % 17 - 8, r = ((hs >> 6) % 7 - 3) * 0.4;
+      const t = esc(`${b.title}${b.authors && b.authors !== 'N/A' ? ', ' + b.authors : ''}: дочитана ${fmtDate(Number(b.lastOpen))}, ${dur(Number(b.time) || 0)}`);
+      return `<div class="pb c${i % 4}" style="--w:${w}%;--t:${th}px;--x:${x}px;--r:${r}deg" title="${t}" data-t="${t}"><span>${esc(b.title)}</span></div>`;
     }).join('');
   }
   //-- Claude 25.11.2026
