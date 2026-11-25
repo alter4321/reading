@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- ++ Claude 25.11.2026 Добавлено: CSP — скрипты только свой (по хешу) и sql.js с точного адреса, сетевые запросы только к Dropbox API и файлу wasm. Даже внедрённый скрипт не сможет отправить ключи на чужой сервер.
      ВАЖНО: при любой правке текста <script> ниже хеш sha256 нужно пересчитать (см. README.md), иначе страница не запустится. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-YDxvP47VhYC4//gvujwozLxEjxOO31uxnLjcaWExFpw=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-3Cc/cyW3DgtpLoCgJybtt+9+kvmKMPw4GGmC5Nz+ua4=' https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js 'wasm-unsafe-eval'; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <!-- -- Claude 25.11.2026 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -272,6 +272,9 @@ const KEY = 'reading-stats.v1', CACHE = 'reading-stats.db';
 //++ Claude 25.11.2026 Добавлено: ключ для временного хранения PKCE-верификатора на время входа
 const PKCE = 'reading-stats.pkce';
 //-- Claude 25.11.2026
+//++ Claude 25.11.2026 Добавлено: книга считается прочитанной с 95% (по самой дальней странице)
+const DONE = 0.95;
+//-- Claude 25.11.2026
 let cfg = {};
 try { cfg = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
 if (!cfg.path) cfg.path = '/Приложения/statistics.sqlite3';
@@ -395,9 +398,15 @@ function analyze(books, ps, dayStart, now) {
     day[key(st)] = (day[key(st)] || 0) + d;
     hours[new Date(st * 1000).getHours()] += d;
     total += d; if (st > last) last = st;
-    const p = per[b] || (per[b] = { durs: [], last: 0, page: 0, tp: 0 });
+    //++ Claude 25.11.2026 Изменено: дополнительно запоминаем самую дальнюю долю книги (max), до которой доходили
+    //const p = per[b] || (per[b] = { durs: [], last: 0, page: 0, tp: 0 });
+    const p = per[b] || (per[b] = { durs: [], last: 0, page: 0, tp: 0, max: 0 });
+    //-- Claude 25.11.2026
     p.durs.push(d);
     if (st >= p.last) { p.last = st; p.page = page; p.tp = tp; }
+    //++ Claude 25.11.2026 Добавлено: самая дальняя страница (в долях книги)
+    if (tp > 0 && page / tp > p.max) p.max = page / tp;
+    //-- Claude 25.11.2026
   }
   const today = new Date((now - shift) * 1000); today.setHours(12, 0, 0, 0);
   const keyOf = dt => key(Math.floor(dt.getTime() / 1000) + shift);
@@ -412,7 +421,10 @@ function analyze(books, ps, dayStart, now) {
     const k = String(b[1] || '').trim().toLowerCase();
     const m = byTitle[k] || (byTitle[k] = { title: b[1], authors: b[2], time: 0, read: 0, durs: [] });
     m.time += b[4] || 0; m.read += b[5] || 0; m.durs.push(...p.durs);
-    if (p.tp) { m.prog = Math.min(1, p.page / p.tp); m.pages = b[3] || p.tp; }
+    //++ Claude 25.11.2026 Изменено: прогресс — по самой дальней странице, а не по последней открытой (примечания в конце, быстро пролистанные последние страницы)
+    //if (p.tp) { m.prog = Math.min(1, p.page / p.tp); m.pages = b[3] || p.tp; }
+    if (p.tp) { m.prog = Math.max(m.prog || 0, Math.min(1, p.max || p.page / p.tp)); m.pages = b[3] || p.tp; }
+    //-- Claude 25.11.2026
     m.lastOpen = b[6];
   }
   const list = Object.values(byTitle).filter(m => m.time >= 60).sort((a, b) => (b.lastOpen || 0) - (a.lastOpen || 0)).map(m => {
@@ -420,8 +432,12 @@ function analyze(books, ps, dayStart, now) {
     //++ Claude 25.11.2026 Изменено: в результат добавлен объём книги (pages) — нужен для высоты корешка на полке
     //return { title: m.title, authors: m.authors, time: m.time, read: m.read, lastOpen: m.lastOpen, prog, med,
     //  left: prog < 0.97 && med ? (1 - prog) * (m.pages || 0) * med : 0 };
+    //++ Claude 25.11.2026 Изменено: порог «прочитано» 95% (DONE) вместо 97%
+    //return { title: m.title, authors: m.authors, time: m.time, read: m.read, lastOpen: m.lastOpen, prog, med, pages: m.pages || 0,
+    //  left: prog < 0.97 && med ? (1 - prog) * (m.pages || 0) * med : 0 };
     return { title: m.title, authors: m.authors, time: m.time, read: m.read, lastOpen: m.lastOpen, prog, med, pages: m.pages || 0,
-      left: prog < 0.97 && med ? (1 - prog) * (m.pages || 0) * med : 0 };
+      left: prog < DONE && med ? (1 - prog) * (m.pages || 0) * med : 0 };
+    //-- Claude 25.11.2026
     //-- Claude 25.11.2026
   });
   return { day, hours, total, last, streak, week, todaySec: day[keyOf(today)] || 0, pagesTotal, list, back, keyOf };
@@ -445,7 +461,10 @@ function render(s) {
   //++ Claude 25.11.2026 Изменено: на полке только книги, которые открывали за последние 30 дней (брошенные давно не мешают)
   //const cur = s.list.filter(b => (Number(b.prog) || 0) < 0.97).slice(0, 7);
   const monthAgo = Date.now() / 1000 - 30 * 86400;
-  const cur = s.list.filter(b => (Number(b.prog) || 0) < 0.97 && (Number(b.lastOpen) || 0) >= monthAgo).slice(0, 7);
+  //++ Claude 25.11.2026 Изменено: порог DONE (95%)
+  //const cur = s.list.filter(b => (Number(b.prog) || 0) < 0.97 && (Number(b.lastOpen) || 0) >= monthAgo).slice(0, 7);
+  const cur = s.list.filter(b => (Number(b.prog) || 0) < DONE && (Number(b.lastOpen) || 0) >= monthAgo).slice(0, 7);
+  //-- Claude 25.11.2026
   //-- Claude 25.11.2026
   $('#shelfBox').hidden = !cur.length;
   if (cur.length) {
@@ -461,7 +480,10 @@ function render(s) {
   //++ Claude 25.11.2026 Добавлено: стопка прочитанных за календарный год (прогресс ≥ 97%, последнее открытие в этом году).
   // Сверху — дочитанная последней. Толщина книги — объём, лёгкий сдвиг и наклон — чтобы стопка выглядела живой.
   const yr = new Date().getFullYear();
-  const done = s.list.filter(b => (Number(b.prog) || 0) >= 0.97 && b.lastOpen && new Date(Number(b.lastOpen) * 1000).getFullYear() === yr);
+  //++ Claude 25.11.2026 Изменено: порог DONE (95%)
+  //const done = s.list.filter(b => (Number(b.prog) || 0) >= 0.97 && b.lastOpen && new Date(Number(b.lastOpen) * 1000).getFullYear() === yr);
+  const done = s.list.filter(b => (Number(b.prog) || 0) >= DONE && b.lastOpen && new Date(Number(b.lastOpen) * 1000).getFullYear() === yr);
+  //-- Claude 25.11.2026
   $('#pileBox').hidden = !done.length;
   if (done.length) {
     $('#pileTitle').textContent = `Прочитано в ${yr}: ${done.length} ${plural(done.length, 'книга', 'книги', 'книг')}`;
